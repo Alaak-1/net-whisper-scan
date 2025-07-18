@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Play, Square, Settings } from 'lucide-react';
 import { ScanConfig } from '../pages/Index';
+import VoiceRecorder from './VoiceRecorder';
 
 interface ScannerInterfaceProps {
   onStartScan: (config: ScanConfig) => void;
@@ -47,15 +48,21 @@ const ScannerInterface = ({ onStartScan, isScanning }: ScannerInterfaceProps) =>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="target" className="text-foreground">Target Host</Label>
-            <Input
-              id="target"
-              type="text"
-              value={config.target}
-              onChange={(e) => setConfig({ ...config, target: e.target.value })}
-              placeholder="192.168.1.1 or example.com"
-              className="bg-input border-border text-foreground font-mono"
-              disabled={isScanning}
-            />
+            <div className="flex space-x-2">
+              <Input
+                id="target"
+                type="text"
+                value={config.target}
+                onChange={(e) => setConfig({ ...config, target: e.target.value })}
+                placeholder="192.168.1.1 or example.com"
+                className="bg-input border-border text-foreground font-mono flex-1"
+                disabled={isScanning}
+              />
+              <VoiceRecorder 
+                onTranscript={(text) => setConfig({ ...config, target: text.trim() })}
+                className="shrink-0"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
