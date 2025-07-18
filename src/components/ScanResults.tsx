@@ -4,7 +4,7 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Download, Monitor, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Download, Monitor, CheckCircle, XCircle, AlertCircle, FileText, Table, Smartphone } from 'lucide-react';
 import { PortResult } from '../pages/Index';
 
 interface ScanResultsProps {
@@ -19,14 +19,95 @@ const ScanResults = ({ results, isScanning, progress, currentPort }: ScanResults
   const closedPorts = results.filter(r => r.status === 'closed');
   const filteredPorts = results.filter(r => r.status === 'filtered');
 
-  const exportResults = () => {
-    const data = JSON.stringify(results, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
+  const downloadAs = (format: 'json' | 'csv' | 'txt') => {
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `port_scan_results_${timestamp}`;
+    
+    let content: string;
+    let mimeType: string;
+    let extension: string;
+
+    switch (format) {
+      case 'json':
+        content = JSON.stringify({
+          scanDate: new Date().toISOString(),
+          totalPorts: results.length,
+          summary: {
+            open: results.filter(r => r.status === 'open').length,
+            closed: results.filter(r => r.status === 'closed').length,
+            filtered: results.filter(r => r.status === 'filtered').length,
+          },
+          results
+        }, null, 2);
+        mimeType = 'application/json';
+        extension = 'json';
+        break;
+      
+      case 'csv':
+        const csvHeader = 'Port,Status,Service,Version\n';
+        const csvRows = results.map(r => 
+          `${r.port},${r.status},${r.service || ''},${r.version || ''}`
+        ).join('\n');
+        content = csvHeader + csvRows;
+        mimeType = 'text/csv';
+        extension = 'csv';
+        break;
+      
+      case 'txt':
+        content = `Port Scan Results - ${new Date().toLocaleString()}\n`;
+        content += `${'='.repeat(50)}\n\n`;
+        content += `Summary:\n`;
+        content += `- Open ports: ${results.filter(r => r.status === 'open').length}\n`;
+        content += `- Closed ports: ${results.filter(r => r.status === 'closed').length}\n`;
+        content += `- Filtered ports: ${results.filter(r => r.status === 'filtered').length}\n\n`;
+        content += `Detailed Results:\n`;
+        content += `${'='.repeat(30)}\n`;
+        results.forEach(r => {
+          content += `Port ${r.port}: ${r.status.toUpperCase()}`;
+          if (r.service) content += ` (${r.service})`;
+          if (r.version) content += ` - ${r.version}`;
+          content += '\n';
+        });
+        mimeType = 'text/plain';
+        extension = 'txt';
+        break;
+    }
+
+    // Create and trigger download with device-optimized approach
+    try {
+      const blob = new Blob([content], { type: mimeType });
+      
+      // Use native sharing API for mobile devices if available
+      if (navigator.share && /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+        const file = new File([blob], `${filename}.${extension}`, { type: mimeType });
+        navigator.share({
+          files: [file],
+          title: 'Port Scan Results',
+          text: 'Scan results from NetWhisper'
+        }).catch(() => {
+          // Fallback to regular download if sharing fails
+          triggerDownload(blob, `${filename}.${extension}`);
+        });
+      } else {
+        // Regular download for desktop/other devices
+        triggerDownload(blob, `${filename}.${extension}`);
+      }
+    } catch (error) {
+      console.error('Download failed:', error);
+      // Fallback for unsupported browsers
+      triggerDownload(new Blob([content], { type: 'text/plain' }), `${filename}.txt`);
+    }
+  };
+
+  const triggerDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `port_scan_results_${Date.now()}.json`;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
@@ -65,15 +146,49 @@ const ScanResults = ({ results, isScanning, progress, currentPort }: ScanResults
             <span>Scan Results</span>
           </div>
           {results.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportResults}
-              className="border-border hover:bg-accent/10"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => downloadAs('json')}
+                className="border-border hover:bg-accent/10"
+                title="Download as JSON (best for data analysis)"
+              >
+                <Download className="w-4 h-4 mr-1" />
+                JSON
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => downloadAs('csv')}
+                className="border-border hover:bg-accent/10"
+                title="Download as CSV (compatible with Excel)"
+              >
+                <Table className="w-4 h-4 mr-1" />
+                CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => downloadAs('txt')}
+                className="border-border hover:bg-accent/10"
+                title="Download as Text (human readable)"
+              >
+                <FileText className="w-4 h-4 mr-1" />
+                TXT
+              </Button>
+              {navigator.share && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadAs('json')}
+                  className="border-border hover:bg-accent/10 md:hidden"
+                  title="Share via mobile apps"
+                >
+                  <Smartphone className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           )}
         </CardTitle>
       </CardHeader>
